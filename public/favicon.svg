@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- 底：深綠圓角方塊 -->
+  <rect x="0" y="0" width="64" height="64" rx="15" fill="#245c49"/>
+  <!-- 收據本體（白，底部鋸齒邊） -->
+  <path d="M20 17 Q20 14 23 14 H41 Q44 14 44 17 V46
+           l-4 4 l-4 -4 l-4 4 l-4 -4 l-4 4 l-4 -4 Z"
+        fill="#fbfcfa"/>
+  <!-- 收據上的文字列 -->
+  <line x1="25" y1="22.5" x2="39" y2="22.5" stroke="#cbd4cc" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="25" y1="27.5" x2="35" y2="27.5" stroke="#cbd4cc" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- 赤陶色勾選：代表已核銷 -->
+  <path d="M25.5 33.5 l4 4 l8.5 -9" fill="none" stroke="#b35f35"
+        stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
