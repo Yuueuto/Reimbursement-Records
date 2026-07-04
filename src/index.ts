@@ -92,7 +92,7 @@ async function api(req: Request, env: Env): Promise<Response> {
       env.DB.prepare(
         "SELECT e.*,m.name member_name FROM expenses e LEFT JOIN members m ON m.id=e.member_id WHERE substr(e.expense_date,1,7)=? ORDER BY e.expense_date DESC,e.id DESC",
       ).bind(m),
-      env.DB.prepare("SELECT * FROM members ORDER BY name COLLATE NOCASE"),
+      env.DB.prepare("SELECT * FROM members ORDER BY travel_date DESC, name COLLATE NOCASE"),
       env.DB.prepare(
         "SELECT COUNT(*) count,COALESCE(SUM(amount_cents),0) total_cents FROM expenses WHERE substr(expense_date,1,7)=?",
       ).bind(m),
@@ -158,14 +158,15 @@ async function api(req: Request, env: Env): Promise<Response> {
   if (url.pathname === "/api/members" && req.method === "POST") {
     const d = await jsonBody(req),
       name = clean(d.name, 80),
+      date = clean(d.travel_date, 10),
       mode = clean(d.transport_mode, 80),
       fare = uint(d.fare_cents);
-    if (!name || !mode || fare === null)
-      return reply({ error: "請填寫委員姓名、交通方式與交通費" }, 400);
+    if (!name || !mode || fare === null || !/^\d{4}-\d{2}-\d{2}$/.test(date))
+      return reply({ error: "請填寫委員姓名、日期、交通方式與交通費" }, 400);
     const r = await env.DB.prepare(
-      "INSERT INTO members(name,transport_mode,route,fare_cents,note) VALUES(?,?,?,?,?)",
+      "INSERT INTO members(name,travel_date,transport_mode,route,fare_cents,note) VALUES(?,?,?,?,?,?)",
     )
-      .bind(name, mode, clean(d.route, 160), fare, clean(d.note))
+      .bind(name, date, mode, clean(d.route, 160), fare, clean(d.note))
       .run();
     return reply({ id: r.meta.last_row_id }, 201);
   }

@@ -72,38 +72,82 @@
               >佐證圖片（最大 8MB）<input
                 name="attachment"
                 type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif" /></label
-            ><label class="wide">備註<textarea name="note"></textarea></label
+                accept="image/jpeg,image/png,image/webp,image/gif"
+            /></label>
+            <div class="wide capture-row">
+              <button type="button" class="ghost" id="capture-btn">📷 截圖並框選區域</button>
+              <button type="button" class="ghost" id="capture-clear" hidden>清除圖片</button>
+            </div>
+            <img id="capture-preview" class="wide" alt="圖片預覽" hidden />
+            <label class="wide">備註<textarea name="note"></textarea></label
             ><button class="wide">儲存費用</button>
             <p class="error wide"></p>
           </form>
-          <div id="expense-list" class="records"></div>
+          <div class="records-col">
+            <div class="list-tools">
+              <label>篩選日期<input id="filter-date" type="date" /></label>
+              <button type="button" class="ghost" id="filter-clear">顯示全部</button>
+            </div>
+            <div id="expense-list" class="records"></div>
+          </div>
         </section>
         <section id="members" class="panel">
           <form id="member-form" class="card form-grid">
             <h2>新增委員交通資料</h2>
-            <label>委員姓名<input name="name" required /></label
-            ><label
-              >交通方式<input
-                name="transport_mode"
-                required
-                placeholder="高鐵、台鐵、計程車…" /></label
-            ><label class="wide">路線<input name="route" /></label
-            ><label
+            <label>委員姓名<input name="name" required /></label>
+            <label>日期<input name="travel_date" type="date" required /></label>
+            <label
+              >交通方式<select name="transport_mode" id="member-mode">
+                <option>高鐵</option>
+                <option>台鐵</option>
+                <option>客運</option>
+                <option>計程車</option>
+                <option>自行開車</option>
+                <option>其他</option>
+              </select></label
+            >
+            <label class="hsr-only checkbox"
+              ><input type="checkbox" id="hsr-round" />來回（票價 ×2）</label
+            >
+            <label class="hsr-only">出發站<select id="hsr-from"></select></label>
+            <label class="hsr-only">到達站<select id="hsr-to"></select></label>
+            <label class="wide"
+              >路線<input name="route" id="member-route" placeholder="例：台北 → 左營"
+            /></label>
+            <label
               >預估交通費（NT$）<input
                 name="fare"
+                id="member-fare"
                 type="number"
                 min="0"
                 value="0"
-                required /></label
-            ><label class="wide">備註<textarea name="note"></textarea></label
-            ><button class="wide">儲存委員</button>
+                required
+            /></label>
+            <label class="wide">備註<textarea name="note"></textarea></label>
+            <button class="wide">儲存委員</button>
             <p class="error wide"></p>
           </form>
-          <div id="member-list" class="records"></div>
+          <div class="records-col">
+            <div class="list-tools">
+              <label>篩選日期<input id="member-filter-date" type="date" /></label>
+              <button type="button" class="ghost" id="member-filter-clear">顯示全部</button>
+            </div>
+            <div id="member-list" class="records"></div>
+          </div>
         </section>
       </section>
     </main>
+    <div id="crop-overlay" hidden>
+      <div class="crop-stage">
+        <img id="crop-image" alt="截圖區域選取" />
+        <div id="crop-box" hidden></div>
+      </div>
+      <div class="crop-bar">
+        <span>用滑鼠拖曳，框選要擷取的區域</span>
+        <button type="button" class="ghost" id="crop-cancel">取消</button>
+        <button type="button" id="crop-confirm" disabled>確定裁切</button>
+      </div>
+    </div>
     <div id="toast"></div>
     <script type="module" src="/app.js"></script>
   </body>
