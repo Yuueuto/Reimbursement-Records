@@ -1,17 +1,141 @@
-const $=s=>document.querySelector(s),money=c=>new Intl.NumberFormat('zh-TW',{style:'currency',currency:'TWD',maximumFractionDigits:0}).format(c/100);let state={members:[],expenses:[]};
-async function api(path,options={}){const headers={...(options.headers||{})};if(!(options.body instanceof FormData))headers['Content-Type']='application/json';const r=await fetch(path,{...options,headers}),d=await r.json();if(!r.ok)throw new Error(d.error||'操作失敗');return d}
-function esc(v=''){const e=document.createElement('span');e.textContent=String(v);return e.innerHTML}function toast(v){const e=$('#toast');e.textContent=v;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2000)}
-async function load(){state=await api('/api/dashboard?month='+$('#month').value);$('#total').textContent=money(state.summary.total_cents);$('#count').textContent=state.summary.count+' 筆紀錄';render()}
-function render(){
- $('#expense-member').innerHTML='<option value="">無</option>'+state.members.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('');
- $('#expense-list').innerHTML=state.expenses.length?state.expenses.map(e=>`<article class="record"><div><h3>${esc(e.description)}</h3><small>${e.expense_date} · ${esc(e.category)}${e.member_name?' · '+esc(e.member_name):''}</small></div><div class="amount">${money(e.amount_cents)}</div>${e.attachment_key?`<a href="/api/receipts/${e.id}" target="_blank" style="grid-column:1/-1"><img src="/api/receipts/${e.id}" alt="${esc(e.attachment_name||'佐證圖片')}" loading="lazy" style="display:block;width:100%;max-height:260px;object-fit:contain;background:#f3f0e8;border-radius:10px;border:1px solid #dde2dd"></a>`:''}<p>${esc([e.payment_method,e.receipt_number&&'憑證 '+e.receipt_number,e.note].filter(Boolean).join(' · '))}</p><button data-expense="${e.id}">刪除</button></article>`).join(''):'<div class="empty">這個月還沒有代墊紀錄</div>';
- $('#member-list').innerHTML=state.members.length?state.members.map(m=>`<article class="record"><div><h3>${esc(m.name)}</h3><small>${esc(m.transport_mode)}${m.route?' · '+esc(m.route):''}</small></div><div class="amount">${money(m.fare_cents)}</div><p>${esc(m.note)}</p><button data-member="${m.id}">刪除</button></article>`).join(''):'<div class="empty">尚未新增委員交通資料</div>';
+const $ = (s) => document.querySelector(s),
+  money = (c) =>
+    new Intl.NumberFormat("zh-TW", {
+      style: "currency",
+      currency: "TWD",
+      maximumFractionDigits: 0,
+    }).format(c / 100);
+let state = { members: [], expenses: [] };
+async function api(path, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  if (!(options.body instanceof FormData)) headers["Content-Type"] = "application/json";
+  const r = await fetch(path, { ...options, headers }),
+    d = await r.json();
+  if (!r.ok) throw new Error(d.error || "操作失敗");
+  return d;
 }
-$('#month').value=new Date().toISOString().slice(0,7);$('#expense-form [name=expense_date]').value=new Date().toISOString().slice(0,10);
-$('#login-form').onsubmit=async e=>{e.preventDefault();const err=e.target.querySelector('.error');try{await api('/api/login',{method:'POST',body:JSON.stringify({password:new FormData(e.target).get('password')})});$('#login').hidden=true;$('#app').hidden=false;await load()}catch(x){err.textContent=x.message}};
-$('#logout').onclick=async()=>{await api('/api/logout',{method:'POST'});location.reload()};$('#month').onchange=load;
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button,.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#'+b.dataset.tab).classList.add('active')});
-$('#expense-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),err=e.target.querySelector('.error');err.textContent='';f.set('amount_cents',String(Math.round(Number(f.get('amount'))*100)));f.delete('amount');try{await api('/api/expenses',{method:'POST',body:f});e.target.reset();e.target.querySelector('[name=expense_date]').value=new Date().toISOString().slice(0,10);toast('費用與圖片已儲存');await load()}catch(x){err.textContent=x.message}};
-$('#member-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),err=e.target.querySelector('.error');err.textContent='';try{await api('/api/members',{method:'POST',body:JSON.stringify({name:f.get('name'),transport_mode:f.get('transport_mode'),route:f.get('route'),fare_cents:Math.round(Number(f.get('fare'))*100),note:f.get('note')})});e.target.reset();e.target.querySelector('[name=fare]').value=0;toast('委員資料已儲存');await load()}catch(x){err.textContent=x.message}};
-document.addEventListener('click',async e=>{const expense=e.target.dataset?.expense,member=e.target.dataset?.member;if(!expense&&!member)return;if(!confirm('確定要刪除這筆資料嗎？'))return;await api(expense?'/api/expenses/'+expense:'/api/members/'+member,{method:'DELETE'});toast('資料已刪除');await load()});
-api('/api/session').then(()=>{$('#login').hidden=true;$('#app').hidden=false;load()}).catch(()=>{});
+function esc(v = "") {
+  const e = document.createElement("span");
+  e.textContent = String(v);
+  return e.innerHTML;
+}
+function toast(v) {
+  const e = $("#toast");
+  e.textContent = v;
+  e.classList.add("show");
+  setTimeout(() => e.classList.remove("show"), 2000);
+}
+async function load() {
+  state = await api("/api/dashboard?month=" + $("#month").value);
+  $("#total").textContent = money(state.summary.total_cents);
+  $("#count").textContent = state.summary.count + " 筆紀錄";
+  render();
+}
+function render() {
+  $("#expense-member").innerHTML =
+    '<option value="">無</option>' +
+    state.members.map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join("");
+  $("#expense-list").innerHTML = state.expenses.length
+    ? state.expenses
+        .map(
+          (e) =>
+            `<article class="record"><div><h3>${esc(e.description)}</h3><small>${e.expense_date} · ${esc(e.category)}${e.member_name ? " · " + esc(e.member_name) : ""}</small></div><div class="amount">${money(e.amount_cents)}</div>${e.attachment_key ? `<a href="/api/receipts/${e.id}" target="_blank" style="grid-column:1/-1"><img src="/api/receipts/${e.id}" alt="${esc(e.attachment_name || "佐證圖片")}" loading="lazy" style="display:block;width:100%;max-height:260px;object-fit:contain;background:#f3f0e8;border-radius:10px;border:1px solid #dde2dd"></a>` : ""}<p>${esc([e.payment_method, e.receipt_number && "憑證 " + e.receipt_number, e.note].filter(Boolean).join(" · "))}</p><button data-expense="${e.id}">刪除</button></article>`,
+        )
+        .join("")
+    : '<div class="empty">這個月還沒有代墊紀錄</div>';
+  $("#member-list").innerHTML = state.members.length
+    ? state.members
+        .map(
+          (m) =>
+            `<article class="record"><div><h3>${esc(m.name)}</h3><small>${esc(m.transport_mode)}${m.route ? " · " + esc(m.route) : ""}</small></div><div class="amount">${money(m.fare_cents)}</div><p>${esc(m.note)}</p><button data-member="${m.id}">刪除</button></article>`,
+        )
+        .join("")
+    : '<div class="empty">尚未新增委員交通資料</div>';
+}
+$("#month").value = new Date().toISOString().slice(0, 7);
+$("#expense-form [name=expense_date]").value = new Date().toISOString().slice(0, 10);
+$("#login-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const err = e.target.querySelector(".error");
+  try {
+    await api("/api/login", {
+      method: "POST",
+      body: JSON.stringify({ password: new FormData(e.target).get("password") }),
+    });
+    $("#login").hidden = true;
+    $("#app").hidden = false;
+    await load();
+  } catch (x) {
+    err.textContent = x.message;
+  }
+};
+$("#logout").onclick = async () => {
+  await api("/api/logout", { method: "POST" });
+  location.reload();
+};
+$("#month").onchange = load;
+document.querySelectorAll("nav button").forEach(
+  (b) =>
+    (b.onclick = () => {
+      document.querySelectorAll("nav button,.panel").forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+      $("#" + b.dataset.tab).classList.add("active");
+    }),
+);
+$("#expense-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target),
+    err = e.target.querySelector(".error");
+  err.textContent = "";
+  f.set("amount_cents", String(Math.round(Number(f.get("amount")) * 100)));
+  f.delete("amount");
+  try {
+    await api("/api/expenses", { method: "POST", body: f });
+    e.target.reset();
+    e.target.querySelector("[name=expense_date]").value = new Date().toISOString().slice(0, 10);
+    toast("費用與圖片已儲存");
+    await load();
+  } catch (x) {
+    err.textContent = x.message;
+  }
+};
+$("#member-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target),
+    err = e.target.querySelector(".error");
+  err.textContent = "";
+  try {
+    await api("/api/members", {
+      method: "POST",
+      body: JSON.stringify({
+        name: f.get("name"),
+        transport_mode: f.get("transport_mode"),
+        route: f.get("route"),
+        fare_cents: Math.round(Number(f.get("fare")) * 100),
+        note: f.get("note"),
+      }),
+    });
+    e.target.reset();
+    e.target.querySelector("[name=fare]").value = 0;
+    toast("委員資料已儲存");
+    await load();
+  } catch (x) {
+    err.textContent = x.message;
+  }
+};
+document.addEventListener("click", async (e) => {
+  const expense = e.target.dataset?.expense,
+    member = e.target.dataset?.member;
+  if (!expense && !member) return;
+  if (!confirm("確定要刪除這筆資料嗎？")) return;
+  await api(expense ? "/api/expenses/" + expense : "/api/members/" + member, { method: "DELETE" });
+  toast("資料已刪除");
+  await load();
+});
+api("/api/session")
+  .then(() => {
+    $("#login").hidden = true;
+    $("#app").hidden = false;
+    load();
+  })
+  .catch(() => {});
