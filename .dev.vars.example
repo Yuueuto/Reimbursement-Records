@@ -1,0 +1,2 @@
+ADMIN_PASSWORD=請換成一組至少12字元的密碼
+SESSION_SECRET=請換成一組至少32字元的隨機字串

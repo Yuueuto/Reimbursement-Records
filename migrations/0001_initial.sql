@@ -1,0 +1,26 @@
+CREATE TABLE IF NOT EXISTS members (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ name TEXT NOT NULL,
+ transport_mode TEXT NOT NULL,
+ route TEXT NOT NULL DEFAULT '',
+ fare_cents INTEGER NOT NULL DEFAULT 0 CHECK(fare_cents>=0),
+ note TEXT NOT NULL DEFAULT '',
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS expenses (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ expense_date TEXT NOT NULL,
+ category TEXT NOT NULL,
+ description TEXT NOT NULL,
+ amount_cents INTEGER NOT NULL CHECK(amount_cents>=0),
+ member_id INTEGER,
+ payment_method TEXT NOT NULL DEFAULT '現金',
+ receipt_number TEXT NOT NULL DEFAULT '',
+ note TEXT NOT NULL DEFAULT '',
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(member_id) REFERENCES members(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_member ON expenses(member_id);

@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "reimbursement-records",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {"directory":"./public","binding":"ASSETS","run_worker_first":["/api/*"]},
+  "d1_databases": [{"binding":"DB","database_name":"reimbursement-records-db","database_id":"501dd02a-8252-4abc-942e-545aa1b590e0","migrations_dir":"./migrations"}],
+  "kv_namespaces": [{"binding":"RECEIPTS","id":"58741cef3798418f9c48c8d03251d292"}],
+  "observability": {"enabled":true,"logs":{"head_sampling_rate":1}}
+}
