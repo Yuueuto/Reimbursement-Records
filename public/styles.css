@@ -226,6 +226,61 @@ nav button.active {
   color: #fff;
   border-color: #ffffff66;
 }
+.panel.roster-panel.active {
+  grid-template-columns: 1fr 1fr;
+}
+.roster-group {
+  padding: 24px;
+}
+.roster-group h2 {
+  margin-bottom: 4px;
+}
+.roster-group .muted {
+  margin: 0 0 14px;
+  font-size: 0.82rem;
+}
+.inline-add {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.inline-add input {
+  flex: 1 1 140px;
+}
+.inline-add button {
+  margin: 0;
+  flex: 0 0 auto;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 12px;
+  background: #eef2ec;
+  border: 1px solid #d9ddd5;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #17312a;
+}
+.chip button {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  line-height: 1;
+  background: #d8e0d8;
+  color: #5a6b62;
+  border-radius: 999px;
+}
+.roster-group .records {
+  margin-top: 14px;
+}
 label.checkbox {
   display: flex;
   flex-direction: row;
@@ -280,6 +335,16 @@ label.checkbox {
   color: #a33b2e;
   padding: 7px 10px;
 }
+.record-actions {
+  grid-column: 1/-1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.record .edit-btn {
+  background: #e8f0ea;
+  color: #245c49;
+}
 .empty {
   padding: 50px 20px;
   text-align: center;
@@ -302,7 +367,8 @@ label.checkbox {
   opacity: 1;
 }
 @media (max-width: 760px) {
-  .panel.active {
+  .panel.active,
+  .panel.roster-panel.active {
     grid-template-columns: 1fr;
   }
   .form-grid {

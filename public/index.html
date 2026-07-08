@@ -42,7 +42,7 @@
         </div>
         <nav>
           <button data-tab="expenses" class="active">費用紀錄</button
-          ><button data-tab="members">委員交通</button>
+          ><button data-tab="members">委員交通</button><button data-tab="roster">名冊管理</button>
         </nav>
         <section id="expenses" class="panel active">
           <form id="expense-form" class="card form-grid">
@@ -71,6 +71,14 @@
               </select></label
             ><label>憑證編號<input name="receipt_number" /></label
             ><label class="wide"
+              >地點（受檢單位）<input
+                name="location"
+                list="place-names"
+                autocomplete="off"
+                placeholder="點選或輸入單位名稱" /></label
+            ><label class="wide"
+              >地址<input name="location_address" placeholder="選擇單位後自動帶入" /></label
+            ><label class="wide"
               >佐證圖片（最大 8MB）<input
                 name="attachment"
                 type="file"
@@ -82,7 +90,8 @@
             </div>
             <img id="capture-preview" class="wide" alt="圖片預覽" hidden />
             <label class="wide">備註<textarea name="note"></textarea></label
-            ><button class="wide">儲存費用</button>
+            ><button class="wide" id="expense-submit">儲存費用</button>
+            <button type="button" class="ghost wide" id="expense-cancel" hidden>取消編輯</button>
             <p class="error wide"></p>
           </form>
           <div class="records-col">
@@ -96,7 +105,10 @@
         <section id="members" class="panel">
           <form id="member-form" class="card form-grid">
             <h2>新增委員交通資料</h2>
-            <label>委員姓名<input name="name" required /></label>
+            <label
+              >委員姓名<input name="name" list="member-names" autocomplete="off" required
+            /></label>
+            <datalist id="member-names"></datalist>
             <label>日期<input name="travel_date" type="date" required /></label>
             <label
               >交通方式<select name="transport_mode" id="member-mode">
@@ -114,6 +126,16 @@
             <label class="hsr-only">出發站<select id="hsr-from"></select></label>
             <label class="hsr-only">到達站<select id="hsr-to"></select></label>
             <label class="wide"
+              >地點（受檢單位）<input
+                name="location"
+                list="place-names"
+                autocomplete="off"
+                placeholder="點選或輸入單位名稱"
+            /></label>
+            <label class="wide"
+              >地址<input name="location_address" placeholder="選擇單位後自動帶入"
+            /></label>
+            <label class="wide"
               >路線<input name="route" id="member-route" placeholder="例：台北 → 左營"
             /></label>
             <label
@@ -126,7 +148,8 @@
                 required
             /></label>
             <label class="wide">備註<textarea name="note"></textarea></label>
-            <button class="wide">儲存委員</button>
+            <button class="wide" id="member-submit">儲存委員</button>
+            <button type="button" class="ghost wide" id="member-cancel" hidden>取消編輯</button>
             <p class="error wide"></p>
           </form>
           <div class="records-col">
@@ -137,7 +160,31 @@
             <div id="member-list" class="records"></div>
           </div>
         </section>
+        <section id="roster" class="panel roster-panel">
+          <div class="card roster-group">
+            <h2>委員名冊</h2>
+            <p class="muted">在此增減委員姓名，會同步到「委員交通」的姓名快選清單。</p>
+            <form id="people-form" class="inline-add">
+              <input name="name" placeholder="新增委員姓名" autocomplete="off" required />
+              <button>新增</button>
+            </form>
+            <p class="error" id="people-error"></p>
+            <div id="people-list" class="chips"></div>
+          </div>
+          <div class="card roster-group">
+            <h2>地點名冊</h2>
+            <p class="muted">在此增減受檢單位，會同步到費用與委員的地點快選清單。</p>
+            <form id="places-form" class="inline-add">
+              <input name="name" placeholder="單位名稱" autocomplete="off" required />
+              <input name="address" placeholder="地址（可留空）" autocomplete="off" />
+              <button>新增</button>
+            </form>
+            <p class="error" id="places-error"></p>
+            <div id="places-list" class="records"></div>
+          </div>
+        </section>
       </section>
+      <datalist id="place-names"></datalist>
     </main>
     <div id="crop-overlay" hidden>
       <div class="crop-stage">

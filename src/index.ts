@@ -88,7 +88,7 @@ async function api(req: Request, env: Env): Promise<Response> {
   if (url.pathname === "/api/dashboard" && req.method === "GET") {
     const raw = url.searchParams.get("month") ?? "",
       m = /^\d{4}-\d{2}$/.test(raw) ? raw : new Date().toISOString().slice(0, 7);
-    const [e, people, s] = await env.DB.batch([
+    const [e, people, s, rp, rl] = await env.DB.batch([
       env.DB.prepare(
         "SELECT e.*,m.name member_name FROM expenses e LEFT JOIN members m ON m.id=e.member_id WHERE substr(e.expense_date,1,7)=? ORDER BY e.expense_date DESC,e.id DESC",
       ).bind(m),
@@ -96,8 +96,16 @@ async function api(req: Request, env: Env): Promise<Response> {
       env.DB.prepare(
         "SELECT COUNT(*) count,COALESCE(SUM(amount_cents),0) total_cents FROM expenses WHERE substr(expense_date,1,7)=?",
       ).bind(m),
+      env.DB.prepare("SELECT * FROM roster_people ORDER BY name COLLATE NOCASE"),
+      env.DB.prepare("SELECT * FROM roster_places ORDER BY name COLLATE NOCASE"),
     ]);
-    return reply({ expenses: e.results, members: people.results, summary: s.results[0] });
+    return reply({
+      expenses: e.results,
+      members: people.results,
+      summary: s.results[0],
+      people: rp.results,
+      places: rl.results,
+    });
   }
   if (url.pathname === "/api/expenses" && req.method === "POST") {
     const f = await req.formData(),
@@ -124,7 +132,7 @@ async function api(req: Request, env: Env): Promise<Response> {
     }
     try {
       const r = await env.DB.prepare(
-        "INSERT INTO expenses(expense_date,category,description,amount_cents,member_id,payment_method,receipt_number,note,attachment_key,attachment_name,attachment_type) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO expenses(expense_date,category,description,amount_cents,member_id,payment_method,receipt_number,note,attachment_key,attachment_name,attachment_type,location,location_address) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
       )
         .bind(
           date,
@@ -138,6 +146,8 @@ async function api(req: Request, env: Env): Promise<Response> {
           key,
           name,
           mime,
+          clean(f.get("location"), 120),
+          clean(f.get("location_address"), 200),
         )
         .run();
       return reply({ id: r.meta.last_row_id }, 201);
@@ -155,6 +165,64 @@ async function api(req: Request, env: Env): Promise<Response> {
     if (row?.attachment_key) await env.RECEIPTS.delete(row.attachment_key);
     return reply({ ok: true });
   }
+  if (expense && req.method === "PUT") {
+    const id = Number(expense[1]),
+      f = await req.formData(),
+      date = clean(f.get("expense_date"), 10),
+      cat = clean(f.get("category"), 50),
+      desc = clean(f.get("description"), 200),
+      amount = uint(f.get("amount_cents")),
+      member = f.get("member_id") ? uint(f.get("member_id")) : null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !cat || !desc || amount === null)
+      return reply({ error: "請完整填寫日期、分類、項目與金額" }, 400);
+    const file = f.get("attachment"),
+      allowed = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+    let newKey: string | null = null;
+    if (file instanceof File && file.size) {
+      if (file.size > 8388608) return reply({ error: "圖片不可超過 8MB" }, 400);
+      if (!allowed.has(file.type))
+        return reply({ error: "只接受 JPG、PNG、WebP 或 GIF 圖片" }, 400);
+      newKey = `receipts/${crypto.randomUUID()}`;
+      await env.RECEIPTS.put(newKey, await file.arrayBuffer(), {
+        metadata: { contentType: file.type },
+      });
+    }
+    const base =
+      "UPDATE expenses SET expense_date=?,category=?,description=?,amount_cents=?,member_id=?,payment_method=?,receipt_number=?,note=?,location=?,location_address=?";
+    const args = [
+      date,
+      cat,
+      desc,
+      amount,
+      member,
+      clean(f.get("payment_method"), 30) || "現金",
+      clean(f.get("receipt_number"), 80),
+      clean(f.get("note")),
+      clean(f.get("location"), 120),
+      clean(f.get("location_address"), 200),
+    ];
+    try {
+      if (newKey) {
+        const old = await env.DB.prepare("SELECT attachment_key FROM expenses WHERE id=?")
+          .bind(id)
+          .first<{ attachment_key: string | null }>();
+        await env.DB.prepare(
+          `${base},attachment_key=?,attachment_name=?,attachment_type=? WHERE id=?`,
+        )
+          .bind(...args, newKey, (file as File).name.slice(0, 200), (file as File).type, id)
+          .run();
+        if (old?.attachment_key) await env.RECEIPTS.delete(old.attachment_key);
+      } else {
+        await env.DB.prepare(`${base} WHERE id=?`)
+          .bind(...args, id)
+          .run();
+      }
+      return reply({ ok: true });
+    } catch (e) {
+      if (newKey) await env.RECEIPTS.delete(newKey);
+      throw e;
+    }
+  }
   if (url.pathname === "/api/members" && req.method === "POST") {
     const d = await jsonBody(req),
       name = clean(d.name, 80),
@@ -164,15 +232,74 @@ async function api(req: Request, env: Env): Promise<Response> {
     if (!name || !mode || fare === null || !/^\d{4}-\d{2}-\d{2}$/.test(date))
       return reply({ error: "請填寫委員姓名、日期、交通方式與交通費" }, 400);
     const r = await env.DB.prepare(
-      "INSERT INTO members(name,travel_date,transport_mode,route,fare_cents,note) VALUES(?,?,?,?,?,?)",
+      "INSERT INTO members(name,travel_date,transport_mode,route,fare_cents,note,location,location_address) VALUES(?,?,?,?,?,?,?,?)",
     )
-      .bind(name, date, mode, clean(d.route, 160), fare, clean(d.note))
+      .bind(
+        name,
+        date,
+        mode,
+        clean(d.route, 160),
+        fare,
+        clean(d.note),
+        clean(d.location, 120),
+        clean(d.location_address, 200),
+      )
       .run();
     return reply({ id: r.meta.last_row_id }, 201);
   }
   const member = url.pathname.match(/^\/api\/members\/(\d+)$/);
   if (member && req.method === "DELETE") {
     await env.DB.prepare("DELETE FROM members WHERE id=?").bind(Number(member[1])).run();
+    return reply({ ok: true });
+  }
+  if (member && req.method === "PUT") {
+    const d = await jsonBody(req),
+      name = clean(d.name, 80),
+      date = clean(d.travel_date, 10),
+      mode = clean(d.transport_mode, 80),
+      fare = uint(d.fare_cents);
+    if (!name || !mode || fare === null || !/^\d{4}-\d{2}-\d{2}$/.test(date))
+      return reply({ error: "請填寫委員姓名、日期、交通方式與交通費" }, 400);
+    await env.DB.prepare(
+      "UPDATE members SET name=?,travel_date=?,transport_mode=?,route=?,fare_cents=?,note=?,location=?,location_address=? WHERE id=?",
+    )
+      .bind(
+        name,
+        date,
+        mode,
+        clean(d.route, 160),
+        fare,
+        clean(d.note),
+        clean(d.location, 120),
+        clean(d.location_address, 200),
+        Number(member[1]),
+      )
+      .run();
+    return reply({ ok: true });
+  }
+  if (url.pathname === "/api/roster/people" && req.method === "POST") {
+    const name = clean((await jsonBody(req)).name, 80);
+    if (!name) return reply({ error: "請輸入委員姓名" }, 400);
+    const r = await env.DB.prepare("INSERT INTO roster_people(name) VALUES(?)").bind(name).run();
+    return reply({ id: r.meta.last_row_id }, 201);
+  }
+  const rp = url.pathname.match(/^\/api\/roster\/people\/(\d+)$/);
+  if (rp && req.method === "DELETE") {
+    await env.DB.prepare("DELETE FROM roster_people WHERE id=?").bind(Number(rp[1])).run();
+    return reply({ ok: true });
+  }
+  if (url.pathname === "/api/roster/places" && req.method === "POST") {
+    const d = await jsonBody(req),
+      name = clean(d.name, 120);
+    if (!name) return reply({ error: "請輸入單位名稱" }, 400);
+    const r = await env.DB.prepare("INSERT INTO roster_places(name,address) VALUES(?,?)")
+      .bind(name, clean(d.address, 200))
+      .run();
+    return reply({ id: r.meta.last_row_id }, 201);
+  }
+  const rl = url.pathname.match(/^\/api\/roster\/places\/(\d+)$/);
+  if (rl && req.method === "DELETE") {
+    await env.DB.prepare("DELETE FROM roster_places WHERE id=?").bind(Number(rl[1])).run();
     return reply({ ok: true });
   }
   return reply({ error: "找不到此功能" }, 404);

@@ -5,7 +5,7 @@ const $ = (s) => document.querySelector(s),
       currency: "TWD",
       maximumFractionDigits: 0,
     }).format(c / 100);
-let state = { members: [], expenses: [] };
+let state = { members: [], expenses: [], people: [], places: [] };
 // 台灣高鐵標準車廂對號座「全票」單程票價（NT$）。官方 2024/07/01 起適用；若調價請更新此表。
 const HSR_STATIONS = [
   "南港",
@@ -80,10 +80,13 @@ function hsrFare(from, to) {
   if (!from || !to || from === to) return 0;
   return HSR_FARES[from]?.[to] ?? HSR_FARES[to]?.[from] ?? 0;
 }
-function recalcHsr() {
+function toggleHsr() {
   const isHsr = $("#member-mode").value === "高鐵";
   document.querySelectorAll(".hsr-only").forEach((el) => (el.hidden = !isHsr));
-  if (!isHsr) return;
+  return isHsr;
+}
+function recalcHsr() {
+  if (!toggleHsr()) return;
   const from = $("#hsr-from").value,
     to = $("#hsr-to").value,
     round = $("#hsr-round").checked;
@@ -116,6 +119,28 @@ async function load() {
   render();
 }
 function render() {
+  $("#member-names").innerHTML = state.people
+    .map((p) => `<option value="${esc(p.name)}"></option>`)
+    .join("");
+  $("#place-names").innerHTML = state.places
+    .map((p) => `<option value="${esc(p.name)}"></option>`)
+    .join("");
+  $("#people-list").innerHTML = state.people.length
+    ? state.people
+        .map(
+          (p) =>
+            `<span class="chip">${esc(p.name)}<button type="button" data-person="${p.id}" title="刪除">×</button></span>`,
+        )
+        .join("")
+    : '<div class="empty">尚無委員</div>';
+  $("#places-list").innerHTML = state.places.length
+    ? state.places
+        .map(
+          (p) =>
+            `<article class="record"><div><h3>${esc(p.name)}</h3>${p.address ? `<small>${esc(p.address)}</small>` : ""}</div><button data-place="${p.id}">刪除</button></article>`,
+        )
+        .join("")
+    : '<div class="empty">尚無地點</div>';
   $("#expense-member").innerHTML =
     '<option value="">無</option>' +
     state.members
@@ -131,7 +156,7 @@ function render() {
   $("#expense-list").innerHTML = expenses.length
     ? expenses
         .map((e) => {
-          const meta = [e.expense_date, e.category, e.payment_method, e.member_name]
+          const meta = [e.expense_date, e.category, e.payment_method, e.member_name, e.location]
             .filter(Boolean)
             .map(esc)
             .join(" · ");
@@ -141,7 +166,7 @@ function render() {
           const image = e.attachment_key
             ? `<a href="/api/receipts/${e.id}" target="_blank" class="record-img"><img src="/api/receipts/${e.id}" alt="${esc(e.attachment_name || "佐證圖片")}" loading="lazy"></a>`
             : "";
-          return `<article class="record"><div><h3>${esc(e.description)}</h3><small>${meta}</small></div><div class="amount">${money(e.amount_cents)}</div>${image}${extra ? `<p>${esc(extra)}</p>` : ""}<button data-expense="${e.id}">刪除</button></article>`;
+          return `<article class="record"><div><h3>${esc(e.description)}</h3><small>${meta}</small></div><div class="amount">${money(e.amount_cents)}</div>${image}${extra ? `<p>${esc(extra)}</p>` : ""}<div class="record-actions"><button class="edit-btn" data-edit-expense="${e.id}">編輯</button><button data-expense="${e.id}">刪除</button></div></article>`;
         })
         .join("")
     : `<div class="empty">${filterDate ? "這一天沒有代墊紀錄" : "這個月還沒有代墊紀錄"}</div>`;
@@ -152,11 +177,11 @@ function render() {
   $("#member-list").innerHTML = members.length
     ? members
         .map((m) => {
-          const meta = [m.travel_date, m.transport_mode, m.route]
+          const meta = [m.travel_date, m.transport_mode, m.location, m.route]
             .filter(Boolean)
             .map(esc)
             .join(" · ");
-          return `<article class="record"><div><h3>${esc(m.name)}</h3><small>${meta}</small></div><div class="amount">${money(m.fare_cents)}</div>${m.note ? `<p>${esc(m.note)}</p>` : ""}<button data-member="${m.id}">刪除</button></article>`;
+          return `<article class="record"><div><h3>${esc(m.name)}</h3><small>${meta}</small></div><div class="amount">${money(m.fare_cents)}</div>${m.note ? `<p>${esc(m.note)}</p>` : ""}<div class="record-actions"><button class="edit-btn" data-edit-member="${m.id}">編輯</button><button data-member="${m.id}">刪除</button></div></article>`;
         })
         .join("")
     : `<div class="empty">${memberFilter ? "這一天沒有委員資料" : "尚未新增委員交通資料"}</div>`;
@@ -177,6 +202,49 @@ $("#member-filter-date").onchange = render;
 $("#member-filter-clear").onclick = () => {
   $("#member-filter-date").value = "";
   render();
+};
+function bindLocationAutofill(form) {
+  const loc = form.querySelector('[name="location"]'),
+    addr = form.querySelector('[name="location_address"]');
+  loc.oninput = () => {
+    const hit = state.places.find((p) => p.name === loc.value);
+    if (hit) addr.value = hit.address || "";
+  };
+}
+bindLocationAutofill($("#expense-form"));
+bindLocationAutofill($("#member-form"));
+$("#people-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const err = $("#people-error");
+  err.textContent = "";
+  try {
+    await api("/api/roster/people", {
+      method: "POST",
+      body: JSON.stringify({ name: new FormData(e.target).get("name") }),
+    });
+    e.target.reset();
+    toast("委員已新增");
+    await load();
+  } catch (x) {
+    err.textContent = x.message;
+  }
+};
+$("#places-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const err = $("#places-error"),
+    f = new FormData(e.target);
+  err.textContent = "";
+  try {
+    await api("/api/roster/places", {
+      method: "POST",
+      body: JSON.stringify({ name: f.get("name"), address: f.get("address") }),
+    });
+    e.target.reset();
+    toast("地點已新增");
+    await load();
+  } catch (x) {
+    err.textContent = x.message;
+  }
 };
 $("#login-form").onsubmit = async (e) => {
   e.preventDefault();
@@ -207,14 +275,85 @@ $("#filter-clear").onclick = () => {
   $("#filter-date").value = "";
   render();
 };
-document.querySelectorAll("nav button").forEach(
-  (b) =>
-    (b.onclick = () => {
-      document.querySelectorAll("nav button,.panel").forEach((x) => x.classList.remove("active"));
-      b.classList.add("active");
-      $("#" + b.dataset.tab).classList.add("active");
-    }),
-);
+let expenseEditId = null,
+  memberEditId = null;
+function switchTab(tab) {
+  document.querySelectorAll("nav button,.panel").forEach((x) => x.classList.remove("active"));
+  document.querySelector(`nav button[data-tab="${tab}"]`)?.classList.add("active");
+  $("#" + tab).classList.add("active");
+}
+document
+  .querySelectorAll("nav button")
+  .forEach((b) => (b.onclick = () => switchTab(b.dataset.tab)));
+function resetExpenseForm() {
+  const form = $("#expense-form");
+  form.reset();
+  form.elements["expense_date"].value = new Date().toISOString().slice(0, 10);
+  expenseEditId = null;
+  $("#expense-submit").textContent = "儲存費用";
+  $("#expense-cancel").hidden = true;
+  showPreview();
+}
+function resetMemberForm() {
+  const form = $("#member-form");
+  form.reset();
+  form.elements["travel_date"].value = new Date().toISOString().slice(0, 10);
+  memberEditId = null;
+  $("#member-submit").textContent = "儲存委員";
+  $("#member-cancel").hidden = true;
+  recalcHsr();
+}
+function editExpense(id) {
+  const e = state.expenses.find((x) => x.id === id);
+  if (!e) return;
+  const els = $("#expense-form").elements;
+  els["expense_date"].value = e.expense_date;
+  els["category"].value = e.category;
+  els["description"].value = e.description;
+  els["amount"].value = e.amount_cents / 100;
+  els["member_id"].value = e.member_id ?? "";
+  els["payment_method"].value = e.payment_method;
+  els["receipt_number"].value = e.receipt_number || "";
+  els["location"].value = e.location || "";
+  els["location_address"].value = e.location_address || "";
+  els["note"].value = e.note || "";
+  attachInput.value = "";
+  const preview = $("#capture-preview");
+  if (e.attachment_key) {
+    preview.src = "/api/receipts/" + e.id;
+    preview.hidden = false;
+  } else {
+    preview.hidden = true;
+    preview.removeAttribute("src");
+  }
+  $("#capture-clear").hidden = true;
+  expenseEditId = e.id;
+  $("#expense-submit").textContent = "更新費用";
+  $("#expense-cancel").hidden = false;
+  switchTab("expenses");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function editMember(id) {
+  const m = state.members.find((x) => x.id === id);
+  if (!m) return;
+  const els = $("#member-form").elements;
+  els["name"].value = m.name;
+  els["travel_date"].value = m.travel_date || new Date().toISOString().slice(0, 10);
+  els["transport_mode"].value = m.transport_mode;
+  els["route"].value = m.route || "";
+  els["fare"].value = m.fare_cents / 100;
+  els["note"].value = m.note || "";
+  els["location"].value = m.location || "";
+  els["location_address"].value = m.location_address || "";
+  toggleHsr();
+  memberEditId = m.id;
+  $("#member-submit").textContent = "更新委員";
+  $("#member-cancel").hidden = false;
+  switchTab("members");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+$("#expense-cancel").onclick = resetExpenseForm;
+$("#member-cancel").onclick = resetMemberForm;
 const attachInput = $("#expense-form [name=attachment]");
 function showPreview() {
   const file = attachInput.files?.[0],
@@ -346,11 +485,13 @@ $("#expense-form").onsubmit = async (e) => {
   f.set("amount_cents", String(Math.round(Number(f.get("amount")) * 100)));
   f.delete("amount");
   try {
-    await api("/api/expenses", { method: "POST", body: f });
-    e.target.reset();
-    e.target.querySelector("[name=expense_date]").value = new Date().toISOString().slice(0, 10);
-    showPreview();
-    toast("費用與圖片已儲存");
+    const editing = expenseEditId;
+    await api(editing ? "/api/expenses/" + editing : "/api/expenses", {
+      method: editing ? "PUT" : "POST",
+      body: f,
+    });
+    resetExpenseForm();
+    toast(editing ? "費用已更新" : "費用與圖片已儲存");
     await load();
   } catch (x) {
     err.textContent = x.message;
@@ -362,8 +503,9 @@ $("#member-form").onsubmit = async (e) => {
     err = e.target.querySelector(".error");
   err.textContent = "";
   try {
-    await api("/api/members", {
-      method: "POST",
+    const editing = memberEditId;
+    await api(editing ? "/api/members/" + editing : "/api/members", {
+      method: editing ? "PUT" : "POST",
       body: JSON.stringify({
         name: f.get("name"),
         travel_date: f.get("travel_date"),
@@ -371,24 +513,32 @@ $("#member-form").onsubmit = async (e) => {
         route: f.get("route"),
         fare_cents: Math.round(Number(f.get("fare")) * 100),
         note: f.get("note"),
+        location: f.get("location"),
+        location_address: f.get("location_address"),
       }),
     });
-    e.target.reset();
-    e.target.querySelector("[name=travel_date]").value = new Date().toISOString().slice(0, 10);
-    recalcHsr();
-    toast("委員資料已儲存");
+    resetMemberForm();
+    toast(editing ? "委員資料已更新" : "委員資料已儲存");
     await load();
   } catch (x) {
     err.textContent = x.message;
   }
 };
 document.addEventListener("click", async (e) => {
-  const expense = e.target.dataset?.expense,
-    member = e.target.dataset?.member;
-  if (!expense && !member) return;
-  if (!confirm("確定要刪除這筆資料嗎？")) return;
-  await api(expense ? "/api/expenses/" + expense : "/api/members/" + member, { method: "DELETE" });
-  toast("資料已刪除");
+  const d = e.target.dataset || {};
+  if (d.editExpense) return editExpense(Number(d.editExpense));
+  if (d.editMember) return editMember(Number(d.editMember));
+  const map = {
+      expense: "/api/expenses/",
+      member: "/api/members/",
+      person: "/api/roster/people/",
+      place: "/api/roster/places/",
+    },
+    key = Object.keys(map).find((k) => d[k]);
+  if (!key) return;
+  if (!confirm("確定要刪除嗎？")) return;
+  await api(map[key] + d[key], { method: "DELETE" });
+  toast("已刪除");
   await load();
 });
 api("/api/session")
